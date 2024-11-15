@@ -22,7 +22,7 @@ export function LobbyJoinerComponent() {
     <div className="flex justify-center items-center w-screen h-screen">
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Lobby Joiner</CardTitle>
+        <CardTitle>Higher Lower Game Multiplayer</CardTitle>
         <CardDescription>Join an existing lobby or create a new one</CardDescription>
       </CardHeader>
       <CardContent>
