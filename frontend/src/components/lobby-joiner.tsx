@@ -12,6 +12,12 @@ import {
 } from "@/components/ui/card";
 import { socket } from "@/lib/socket.ts";
 
+// --- Hilfsfunktion für Standard-Namen ---
+function getRandomUsername(): string {
+  const randomNumber = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
+  return "GUEST" + randomNumber; // z. B. "GUEST0123"
+}
+
 // --- Typen für Server-Events --- //
 interface ServerError {
   message: string;
@@ -33,6 +39,7 @@ interface PlayerJoinedEvent {
 export const LobbyJoinerComponent: React.FC = (): ReactElement => {
   const [lobbyCode, setLobbyCode] = useState<string>("");
   const [message, setMessage] = useState<string>("");
+  const [username, setUsername] = useState<string>(getRandomUsername());
 
   const navigate = useNavigate();
 
@@ -57,7 +64,6 @@ export const LobbyJoinerComponent: React.FC = (): ReactElement => {
     // 4) Ein weiterer Spieler ist der Lobby beigetreten
     const handlePlayerJoined = ({ playerId }: PlayerJoinedEvent) => {
       console.log(`Player joined: ${playerId}`);
-      // Falls du hier UI-Updates machen möchtest, könntest du das in einem State speichern
     };
 
     // Socket-Events registrieren
@@ -78,7 +84,7 @@ export const LobbyJoinerComponent: React.FC = (): ReactElement => {
   // Lobby erstellen
   const createLobby = (): void => {
     setMessage("");
-    socket.emit("create_lobby");
+    socket.emit("create_lobby", { username: username.trim() });
   };
 
   // Lobby beitreten
@@ -88,7 +94,12 @@ export const LobbyJoinerComponent: React.FC = (): ReactElement => {
       return;
     }
     setMessage("");
-    socket.emit("join_lobby", lobbyCode);
+
+    // Prüfen, ob user etwas eingetragen hat; wenn nicht → Random-Name
+    const finalUsername = username.trim() ;
+
+    // Emit an den Server mit Code und Benutzername
+    socket.emit("join_lobby", { lobbyCode, username: finalUsername });
   };
 
   return (
@@ -99,7 +110,15 @@ export const LobbyJoinerComponent: React.FC = (): ReactElement => {
           <CardDescription>Join an existing lobby or create a new one</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-col gap-2">
+            <Input
+              type="text"
+              placeholder="Enter Your Name (optional)"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="flex-grow"
+              maxLength={12} // Erhöhe, wenn du längere Namen willst
+            />
             <Input
               type="text"
               placeholder="Enter lobby code"
@@ -108,14 +127,18 @@ export const LobbyJoinerComponent: React.FC = (): ReactElement => {
               className="flex-grow"
               maxLength={6}
             />
-            <Button onClick={joinLobby}>Join</Button>
+            {message && <p className="mt-2 text-sm text-red-500">{message}</p>}
           </div>
-          {message && <p className="mt-2 text-sm text-red-500">{message}</p>}
         </CardContent>
         <CardFooter>
-          <Button onClick={createLobby} variant="outline" className="w-full">
-            Create New Lobby
-          </Button>
+          <div className="flex flex-col w-full gap-2">
+            <Button onClick={joinLobby} className="w-full">
+              Join
+            </Button>
+            <Button onClick={createLobby} variant="outline" className="w-full">
+              Create New Lobby
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>
