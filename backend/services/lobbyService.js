@@ -34,51 +34,67 @@ function createLobby(socket, username, io) {
  * Fügt einen Spieler einer existierenden Lobby hinzu, wenn sie existiert
  */
 function joinLobby(socket, lobbyCode, username, io) {
-    const lobby = lobbies[lobbyCode];
-    console.log("lobby", lobby, lobbyCode);
-    if (!lobby) {
-      return false; // Lobby existiert nicht
-    }
-  
-    // Spieler zur Lobby hinzufügen
-    lobby.players.push({ socketId: socket.id, username });
-    socket.join(lobbyCode);
-  
-    // Alle in dieser Lobby über die neue Spielerliste informieren
-    io.to(lobbyCode).emit("lobby_update", {
-      players: lobby.players,
-    });
-  
-    return true;
+  const lobby = lobbies[lobbyCode];
+
+  if (!lobby) {
+      return false;
   }
+
+  // Prüfe, ob der Benutzer schon da ist → Falls ja, aktualisiere nur die `socket.id`
+  let existingPlayer = lobby.players.find(p => p.username === username);
+  
+  if (existingPlayer) {
+      console.log(`Spieler ${username} ist schon in der Lobby. Aktualisiere socketId.`);
+      existingPlayer.socketId = socket.id; // **Hier updaten, falls Spieler existiert**
+  } else {
+      console.log(`Neuer Spieler ${username} tritt bei.`);
+      lobby.players.push({ socketId: socket.id, username });
+  }
+
+  socket.join(lobbyCode);
+  io.to(lobbyCode).emit("lobby_update", { players: lobby.players });
+
+  return true;
+}
+
 
 /**
  * Entfernt den Spieler aus seiner Lobby und räumt ggf. auf
  */
 function removePlayer(socket, io) {
-    for (const [code, lobby] of Object.entries(lobbies)) {
-      // Wir suchen den Index basierend auf 'socketId'
-      const index = lobby.players.findIndex(
-        (player) => player.socketId === socket.id
-      );
+  for (const [code, lobby] of Object.entries(lobbies)) {
+      const index = lobby.players.findIndex((p) => p.socketId === socket.id);
+      debugger;
       if (index !== -1) {
-        lobby.players.splice(index, 1);
-        if (lobby.players.length === 0) {
-          // Lobby löschen, wenn leer
-          delete lobbies[code];
-          console.log(`Lobby ${code} deleted`);
-        } else {
-          // Allen verbleibenden Spielern mitteilen, dass jemand ging
-          io.to(code).emit("player_left", { playerId: socket.id });
-          // Zusätzlich könntest du ein "lobby_update" senden, um direkt die aktualisierte Liste zu pushen:
-          io.to(code).emit("lobby_update", {
-            players: lobby.players,
-          });
-        }
-        break;
+          const disconnectedPlayer = lobby.players[index];
+          console.log(`Spieler ${disconnectedPlayer.username} (${socket.id}) hat die Verbindung verloren. Warte auf Reconnect...`);
+
+          // Warte 5 Sekunden auf Reconnect
+          setTimeout(() => {
+              console.log(`Prüfe erneut, ob Spieler ${disconnectedPlayer.username} (${socket.id}) noch getrennt ist...`);
+              
+              const stillConnected = lobby.players.find((p) => p.username === disconnectedPlayer.username);
+              console.log(`Spieler ${stillConnected.username}, ${stillConnected.socketId}, ${socket.id} stillConnected `); 
+              
+              if (!stillConnected) {
+                  console.log(`Spieler ${disconnectedPlayer.username} wurde NICHT wieder verbunden. Entferne aus Lobby.`);
+                  
+                  lobby.players.splice(index, 1);
+                  if (lobby.players.length === 0) {
+                      delete lobbies[code]; // Lösche die Lobby, wenn leer
+                      console.log(`Lobby ${code} gelöscht.`);
+                  } else {
+                      io.to(code).emit("lobby_update", { players: lobby.players });
+                  }
+              } else {
+                  console.log(`Spieler ${disconnectedPlayer.username} hat sich wieder verbunden. Keine Entfernung.`);
+              }
+          }, 5000);
       }
-    }
   }
+}
+
+
   
 
 /**

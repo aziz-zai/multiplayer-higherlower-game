@@ -44,42 +44,56 @@ export const LobbyJoinerComponent: React.FC = (): ReactElement => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 1) Lobby wurde erfolgreich erstellt
+    // 1) Lobby wurde erfolgreich erstellt → Speichern & weiterleiten
     const handleLobbyCreated = ({ lobbyCode }: LobbyCreatedEvent) => {
-      console.log("Lobby created:", lobbyCode);
-      navigate(`/lobby/${lobbyCode}`);
+        console.log("Lobby created:", lobbyCode);
+        localStorage.setItem("lobbyCode", lobbyCode);
+        localStorage.setItem("username", username);
+        navigate(`/lobby/${lobbyCode}`);
     };
 
-    // 2) Lobby wurde erfolgreich beigetreten
+    // 2) Lobby wurde erfolgreich beigetreten → Speichern & weiterleiten
     const handleLobbyJoined = ({ lobbyCode }: LobbyJoinedEvent) => {
-      console.log("Joined lobby:", lobbyCode);
-      navigate(`/lobby/${lobbyCode}`);
+        console.log("Joined lobby:", lobbyCode);
+        localStorage.setItem("lobbyCode", lobbyCode);
+        localStorage.setItem("username", username);
+        navigate(`/lobby/${lobbyCode}`);
     };
 
-    // 3) Fehler vom Server empfangen
+    // 3) Fehler-Handling
     const handleServerError = ({ message }: ServerError) => {
-      setMessage(`Error: ${message}`);
+        setMessage(`Error: ${message}`);
     };
 
     // 4) Ein weiterer Spieler ist der Lobby beigetreten
     const handlePlayerJoined = ({ playerId }: PlayerJoinedEvent) => {
-      console.log(`Player joined: ${playerId}`);
+        console.log(`Player joined: ${playerId}`);
     };
 
-    // Socket-Events registrieren
+    // Events registrieren
     socket.on("lobby_created", handleLobbyCreated);
     socket.on("lobby_joined", handleLobbyJoined);
     socket.on("error", handleServerError);
     socket.on("player_joined", handlePlayerJoined);
 
-    // Cleanup beim Verlassen der Komponente
+    // **Prüfen, ob der Spieler bereits in einer Lobby war → Automatischer Rejoin**
+    const savedLobby = localStorage.getItem("lobbyCode");
+    const savedUsername = localStorage.getItem("username");
+
+    if (savedLobby && savedUsername) {
+        console.log(`Rejoining Lobby: ${savedLobby} as ${savedUsername}`);
+        socket.emit("rejoin_lobby", { lobbyCode: savedLobby, username: savedUsername });
+    }
+
+    // Cleanup
     return () => {
-      socket.off("lobby_created", handleLobbyCreated);
-      socket.off("lobby_joined", handleLobbyJoined);
-      socket.off("error", handleServerError);
-      socket.off("player_joined", handlePlayerJoined);
+        socket.off("lobby_created", handleLobbyCreated);
+        socket.off("lobby_joined", handleLobbyJoined);
+        socket.off("error", handleServerError);
+        socket.off("player_joined", handlePlayerJoined);
     };
-  }, [navigate]);
+}, [navigate, username]);
+
 
   // Lobby erstellen
   const createLobby = (): void => {
@@ -88,19 +102,18 @@ export const LobbyJoinerComponent: React.FC = (): ReactElement => {
   };
 
   // Lobby beitreten
-  const joinLobby = (): void => {
+  const joinLobby = () => {
     if (!lobbyCode.trim()) {
-      setMessage("Please enter a valid lobby code.");
-      return;
+        setMessage("Please enter a valid lobby code.");
+        return;
     }
-    setMessage("");
 
-    // Prüfen, ob user etwas eingetragen hat; wenn nicht → Random-Name
-    const finalUsername = username.trim() ;
-
-    // Emit an den Server mit Code und Benutzername
+    const finalUsername = username.trim();
+    console.log(`Sending join request → lobbyCode: ${lobbyCode}, username: ${finalUsername}`);
+    
     socket.emit("join_lobby", { lobbyCode, username: finalUsername });
-  };
+};
+
 
   return (
     <div className="flex justify-center items-center w-screen h-screen">
